@@ -11,7 +11,9 @@ public class Chunk
 {
     public BlockData[,,] blocks;
 
-    public GameObject chunkObj;
+    public string chunkName;
+    GameObject chunks;
+    public GameObject meshObject;
 
     private MeshGenerator meshGenerator;
     
@@ -39,7 +41,7 @@ public class Chunk
     public Chunk(MeshGenerator meshGenerator, int c_x, int c_z)
     {
         this.meshGenerator = meshGenerator;
-        this.chunkObj = new GameObject("Chunk" + c_x + "_" + c_z);
+        this.chunkName = "Chunk" + c_x + "_" + c_z;
         this.c_size = meshGenerator.c_size;
         this.c_height = meshGenerator.c_height;
         this.c_x = c_x;
@@ -47,8 +49,9 @@ public class Chunk
         // blocks = new Block[c_size + 2, c_height, c_size + 2];
         blocks = new BlockData[c_size + 2, c_height, c_size + 2];
 
-        GameObject chunks = GameObject.Find("Chunks");
-        chunkObj.transform.parent = chunks.transform;
+        chunks = GameObject.Find("Chunks");
+
+        this.meshObject = new GameObject(chunkName);
 
         mesh = new Mesh();
         waterMesh = new Mesh();
@@ -112,24 +115,44 @@ public class Chunk
                     range += _amplitude;
                 }
                 height = height + 0.5f - range/2;
-                // Debug.Log(height);
                 for(int y = 0; y < c_height; y++) {
                     if(y < height * c_height) {
-                        blocks[x+1,y,z+1].isOpaque = true;
-                        blocks[x+1,y,z+1].type = "grass";
+                        blocks[x+1,y,z+1] = new BlockData(BlockData.BlockType.GRASS);
                     }
                     else
                     {
-                        // if(y < 0.3f*c_height) {
-                        //     blocks[x+1,y,z+1].isOpaque = false;
-                        //     blocks[x+1,y,z+1].type = "water";
-                        // }
-                        // else {
-                            blocks[x+1,y,z+1].isOpaque = false;
-                            blocks[x+1,y,z+1].type = "air";
-                        // }
+                        if(y < 0.45f*c_height) {
+                            blocks[x+1,y,z+1] = new BlockData(BlockData.BlockType.WATER);
+                        }
+                        else {
+                            blocks[x+1,y,z+1] = new BlockData(BlockData.BlockType.AIR);
+                        }
                     }
                 }
+
+                // //add trees
+                // float isSelected_block_for_tree = Mathf.PerlinNoise((c_x*c_size + x) * 0.2f + meshGenerator.randomOffset.x, (c_z*c_size + z) * 0.2f + meshGenerator.randomOffset.z) * 10;
+                // // Debug.Log(isSelected_block_for_tree);
+                // if(isSelected_block_for_tree < 0.5f) {
+                //     for(int i=0; i<7; i++) {
+                //         blocks[x+1, (int)(height*c_height)+1+i, z+1] = new BlockData(BlockData.BlockType.OAK_LOG);
+                //         if(i > 4) {
+                //             for(int t_z=0; t_z<7-i; t_z++) {
+                //                 for(int t_x=0; t_x<7-i; t_x++) {
+                //                     try
+                //                     {
+                //                         blocks[x+1+t_x, (int)(height*c_height)+1+i, z+1+t_z] = new BlockData(BlockData.BlockType.GRASS);
+                //                     }
+                //                     catch (System.Exception)
+                //                     {
+                //                         Debug.Log("out of range");
+                //                     }
+                //                 }
+                //             }
+                //         }
+                //     }
+
+                // }
             }
         }
 
@@ -137,10 +160,10 @@ public class Chunk
         // for(int y = 0; y < c_height; y++) {
         //     for(int z = -1; z < c_size+1; z++) {
         //         for(int x = -1; x < c_size+1; x++) {
-        //             if(blocks[x+1, y, z+1].type != "air" && blocks[x+1, y, z+1].type != "water") {
+        //             if(blocks[x+1, y, z+1].blockType != BlockData.BlockType.AIR && blocks[x+1, y, z+1].blockType != BlockData.BlockType.WATER) {
         //                 float opacity = 0;
-        //                 float _amplitude = 1f;
-        //                 float _frequency = 0.005f;
+        //                 float _amplitude = 0.1f;
+        //                 float _frequency = 0.03f;
         //                 float range = _amplitude;
         //                 float _octaves = 7;
         //                 for(int i=0; i<_octaves; i++) {
@@ -157,12 +180,12 @@ public class Chunk
         //                 //     blocks[x+1, y, z+1].type = "air";
         //                 // }
         //                 if(opacity > 0.55f) {
-        //                     blocks[x+1, y, z+1].isOpaque = false;
-        //                     blocks[x+1, y, z+1].type = "air";
+        //                     blocks[x+1, y, z+1].isSolid = false;
+        //                     blocks[x+1, y, z+1].blockType = BlockData.BlockType.AIR;
         //                 }
         //             }
         //         }
-            // }
+        //     }
         // }
     }
 
@@ -205,28 +228,28 @@ public class Chunk
         for(int block_y = 0; block_y < c_height; block_y++) {
             for(int block_z = 0; block_z < c_size; block_z++) {
                 for(int block_x = 0; block_x < c_size; block_x++) {
-                    Block currentBlock = blocks[block_x+1, block_y, block_z+1];
-                    if(currentBlock.type != "air") {
+                    BlockData currentBlock = blocks[block_x+1, block_y, block_z+1];
+                    if(currentBlock.blockType != BlockData.BlockType.AIR) {
                         bool[] faceConditions;
-                        if(currentBlock.type == "water") {
+                        if(currentBlock.blockType == BlockData.BlockType.WATER) {
                             faceConditions = new bool[] {
-                                blocks[block_x+1, block_y, block_z+1].type.Equals("air"), // front
-                                blocks[block_x, block_y, block_z+1].type.Equals("air"), // left
-                                blocks[block_x+1, block_y, block_z+2].type.Equals("air"), // back
-                                blocks[block_x+2, block_y, block_z+1].type.Equals("air"), // right
-                                block_y == c_height-1 || blocks[block_x+1, block_y+1, block_z+1].type.Equals("air"), // top
-                                block_y != 0 && blocks[block_x+1, block_y-1, block_z+1].type.Equals("air"), // bottom
+                                blocks[block_x+1, block_y, block_z+1].blockType.Equals(BlockData.BlockType.AIR), // front
+                                blocks[block_x, block_y, block_z+1].blockType.Equals(BlockData.BlockType.AIR), // left
+                                blocks[block_x+1, block_y, block_z+2].blockType.Equals(BlockData.BlockType.AIR), // back
+                                blocks[block_x+2, block_y, block_z+1].blockType.Equals(BlockData.BlockType.AIR), // right
+                                block_y == c_height-1 || blocks[block_x+1, block_y+1, block_z+1].blockType.Equals(BlockData.BlockType.AIR), // top
+                                block_y != 0 && blocks[block_x+1, block_y-1, block_z+1].blockType.Equals(BlockData.BlockType.AIR), // bottom
                                 // true, true, true, true, true, true
                             };
                         }
                         else {
                             faceConditions = new bool[] {
-                                !blocks[block_x+1, block_y, block_z].isOpaque, // front
-                                !blocks[block_x, block_y, block_z+1].isOpaque, // left
-                                !blocks[block_x+1, block_y, block_z+2].isOpaque, // back
-                                !blocks[block_x+2, block_y, block_z+1].isOpaque, // right
-                                block_y == c_height-1 || !blocks[block_x+1, block_y+1, block_z+1].isOpaque, // top
-                                block_y != 0 && !blocks[block_x+1, block_y-1, block_z+1].isOpaque, // bottom
+                                !blocks[block_x+1, block_y, block_z].isSolid, // front
+                                !blocks[block_x, block_y, block_z+1].isSolid, // left
+                                !blocks[block_x+1, block_y, block_z+2].isSolid, // back
+                                !blocks[block_x+2, block_y, block_z+1].isSolid, // right
+                                block_y == c_height-1 || !blocks[block_x+1, block_y+1, block_z+1].isSolid, // top
+                                block_y != 0 && !blocks[block_x+1, block_y-1, block_z+1].isSolid, // bottom
                                 // true, true, true, true, true, true
                             };
                         }
@@ -236,7 +259,7 @@ public class Chunk
                         int index = 0;
                         for(int face = 0; face < faceConditions.Length; face++) {
                             if(faceConditions[face]) {
-                                if(currentBlock.type == "water") {
+                                if(currentBlock.blockType == BlockData.BlockType.WATER) {
                                     // vertices
                                     for(int i = 0; i < 4; i++) {
                                         waterVertices.Add(new Vector3(
@@ -264,12 +287,12 @@ public class Chunk
                                     }
 
                                     //uvs
-                                    Vector2 start = get_Texure_cord_from_type(blocks[block_x+1, block_y, block_z+1].type);
+                                    Vector2 start = get_Texure_cord_from_type(blocks[block_x+1, block_y, block_z+1].blockType);
                                     addUV(uvs, (int)start.x, (int)start.y);
 
 
                                     //colors
-                                    if(currentBlock.type == "grass") {
+                                    if(currentBlock.blockType == BlockData.BlockType.GRASS) {
                                         addfourColors(new Color(0, 1, 0, 1));
                                     }
                                     else {
@@ -313,8 +336,8 @@ public class Chunk
         mesh.SetUVs(0, uvs);
 
 
-        GameObject meshObject = new GameObject("Mesh");
-        meshObject.transform.parent = chunkObj.transform;
+        
+        meshObject.transform.parent = chunks.transform;
         meshObject.AddComponent<MeshFilter>().mesh = mesh;
         meshObject.AddComponent<MeshCollider>().sharedMesh = mesh;
         meshObject.AddComponent<MeshRenderer>().material = material;
@@ -336,14 +359,14 @@ public class Chunk
             {
                 tag = "Water"
             };
-            waterMeshObject.transform.parent = chunkObj.transform;
+            waterMeshObject.transform.parent = meshObject.transform;
             waterMeshObject.AddComponent<MeshFilter>().mesh = waterMesh;
             waterMeshObject.AddComponent<MeshRenderer>().material = waterMaterial;
             
             waterMesh.RecalculateNormals();
         }
 
-        chunkObj.transform.position = new Vector3(c_x * c_size, 0, c_z * c_size);
+        meshObject.transform.position = new Vector3(c_x * c_size, 0, c_z * c_size);
     }
 
     public void addUV(List<Vector2> _uvs, int x, int y) {
@@ -362,12 +385,21 @@ public class Chunk
         });
     }
 
-    public Vector2 get_Texure_cord_from_type(string type) {
-        if(type == "grass") {
+    public Vector2 get_Texure_cord_from_type(BlockData.BlockType type) {
+        if(type == BlockData.BlockType.GRASS) {
             return new Vector2(0, 15);
         }
-        else if(type == "water") {
+        else if(type == BlockData.BlockType.WATER) {
             return new Vector2(13, 3);
+        }
+        else if(type == BlockData.BlockType.STONE) {
+            return new Vector2(1, 15);
+        }
+        else if(type == BlockData.BlockType.OAK_LOG) {
+            return new Vector2(7, 10);
+        }
+        else if(type == BlockData.BlockType.Leaves) {
+            return new Vector2(5, 11);
         }
         else {
             return new Vector2(7, 1);
@@ -382,13 +414,13 @@ public class Chunk
 
     public void destroyChunk()
     {
-        GameObject.Destroy(chunkObj);
+        GameObject.Destroy(meshObject);
     }
 
-    public Block getBlock(Vector3Int pos)
+    public BlockData getBlock(Vector3Int pos)
     {
         if(pos.x < 0 || pos.x >= c_size || pos.y < 0 || pos.y >= c_height || pos.z < 0 || pos.z >= c_size) {
-            return new Block();
+            return new BlockData(BlockData.BlockType.AIR);
         }
         return blocks[pos.x, pos.y, pos.z];
     }

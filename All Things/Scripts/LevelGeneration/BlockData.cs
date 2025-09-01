@@ -2,15 +2,17 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class BlockData : MonoBehaviour
+public class BlockData
 {
     public enum BlockType
     {
-        Air,
-        Grass,
-        Dirt,
-        Stone,
-        Water
+        AIR,
+        GRASS,
+        DIRT,
+        STONE,
+        WATER,
+        OAK_LOG,
+        Leaves,
     }
 
     public BlockType blockType;
@@ -20,7 +22,8 @@ public class BlockData : MonoBehaviour
     public BlockData(BlockType blockType)
     {
         this.blockType = blockType;
-        if (blockType == BlockType.Air)
+        if (blockType == BlockType.AIR ||
+            blockType == BlockType.WATER)
         {
             isSolid = false;
         }

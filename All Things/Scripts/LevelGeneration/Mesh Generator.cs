@@ -7,7 +7,7 @@ using System;
 using UnityEditor;
 
 public class MeshGenerator : MonoBehaviour
-{   
+{
     public GameObject chunks;
     public GameObject player;
 
@@ -26,6 +26,9 @@ public class MeshGenerator : MonoBehaviour
     public float heightOffset;
     public int octaves;
     public int seed;
+    List<string> keysToRemove;
+
+    int chunksGeneratedInARow;
 
     [HideInInspector]
     public Vector3 randomOffset;
@@ -39,7 +42,8 @@ public class MeshGenerator : MonoBehaviour
     // faces
     // 0 = front, 1 = left, 2 = back, 3 = right, 4 = top, 5 = bottom
 
-    void Start() {
+    void Start()
+    {
         seed = UnityEngine.Random.Range(0, 1000000);
         UnityEngine.Random.InitState(seed);
         randomOffset = new Vector3(UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000));
@@ -47,8 +51,9 @@ public class MeshGenerator : MonoBehaviour
         texture.mipMapBias = -4;
         texture.Apply();
         material.mainTexture = texture;
+        keysToRemove = new List<string>();
 
-        
+
 
         // randomOffset = new Vector3(1000, 1000, 1000);
         // drawOneChunk(0, 0);
@@ -63,55 +68,72 @@ public class MeshGenerator : MonoBehaviour
         // player.transform.position = new Vector3(player.transform.position.x, height + 3f, player.transform.position.z);
     }
 
-    void Update() {
+    void Update()
+    {
         CheckChange();
-    }
 
-    void FixedUpdate() {
-        if(activeThreads.Count > 0) {
-            for(int i = 0; i < activeThreads.Count; i++) {
-                if(activeThreads[i].ThreadState.Equals(ThreadState.Stopped)) {
+        if (activeThreads.Count > 0)
+        {
+            for (int i = 0; i < activeThreads.Count; i++)
+            {
+                if (activeThreads[i].ThreadState.Equals(ThreadState.Stopped))
+                {
                     // get chunk from thread
-                    // activeThreads[i].Abort();
-                    // activeThreads[i] = ChunkG
                     chunksGenerating[i].applyMesh(material, waterMaterial);
                     activeThreads.RemoveAt(i);
                     chunksGenerating.RemoveAt(i);
-                    // activeChunk.Add(chunksGenerating[i].c_x + "_" + chunksGenerating[i].c_z, chunksGenerating[i]);
+                    // chunksGeneratedInARow++;
+                    // // if (chunksGeneratedInARow > size * 2 + 5)
+                    // // {
+                    // //     deleteOldestChunk();
+                    // // }
+                    break;
                 }
             }
         }
+        else
+        {
+            deleteOldestChunk();
+        }
     }
 
-    void CheckChange() {
+    void CheckChange()
+    {
+        // float startTime = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
         int c_x = Mathf.FloorToInt(player.transform.position.x / c_size);
         int c_z = Mathf.FloorToInt(player.transform.position.z / c_size);
 
-        for(int z = -size/2; z < size/2; z++) {
-            for(int x = -size/2; x < size/2; x++) {
+        for (int z = -size / 2; z < size / 2; z++)
+        {
+            for (int x = -size / 2; x < size / 2; x++)
+            {
                 string key = (c_x + x) + "_" + (c_z + z);
-                if(!activeChunk.ContainsKey(key)) {
+                if (!activeChunk.ContainsKey(key))
+                {
                     drawOneChunk(c_x + x, c_z + z);
                 }
             }
         }
 
-
-
         List<string> keys = new List<string>(activeChunk.Keys);
-        foreach(string key in keys) {
+        foreach (string key in keys)
+        {
             string[] split = key.Split('_');
             int x = int.Parse(split[0]);
             int z = int.Parse(split[1]);
 
-            if(x < c_x - size/2 || x > c_x + size/2 || z < c_z - size/2 || z > c_z + size/2) {
-                activeChunk[key].destroyChunk();
-                activeChunk.Remove(key);
+            if (x < c_x - size / 2 || x > c_x + size / 2 || z < c_z - size / 2 || z > c_z + size / 2)
+            {
+                keysToRemove.Add(key);
             }
         }
+
+        // float elapsedTime = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond - startTime;
+        // Debug.Log("CheckChange took: " + elapsedTime + " seconds");
     }
 
-    void drawOneChunk(int c_x, int c_z) {
+    void drawOneChunk(int c_x, int c_z)
+    {
         Chunk chunk = new Chunk(this, c_x, c_z);
         Thread newThread = new Thread(() => chunk.generateChunk());
         activeThreads.Add(newThread);
@@ -120,12 +142,30 @@ public class MeshGenerator : MonoBehaviour
         activeChunk.Add(c_x + "_" + c_z, chunk);
     }
 
-    public void reintialize() {
-        foreach(KeyValuePair<string, Chunk> chunk in activeChunk) {
+    public void reintialize()
+    {
+        foreach (KeyValuePair<string, Chunk> chunk in activeChunk)
+        {
             chunk.Value.destroyChunk();
         }
         activeChunk.Clear();
         randomOffset = new Vector3(UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000));
         CheckChange();
+    }
+
+    void deleteOldestChunk()
+    {
+        if (keysToRemove.Count > 0)
+        {
+            foreach (string key in keysToRemove)
+            {
+                if (activeChunk.ContainsKey(key))
+                {
+                    activeChunk[key].destroyChunk();
+                    activeChunk.Remove(key);
+                }
+            }
+            keysToRemove.Clear();
+        }
     }
 }

@@ -22,11 +22,11 @@ public class chunkCuller : MonoBehaviour
         {
             //if player is stanting on that chunk dont hide it
             if(chunk.c_x == Mathf.Floor(meshGenerator.player.transform.position.x / meshGenerator.c_size) && chunk.c_z == Mathf.Floor(meshGenerator.player.transform.position.z / meshGenerator.c_size)) {
-                chunk.chunkObj.SetActive(true);
+                chunk.meshObject.SetActive(true);
                 continue;
             }
 
-            GameObject mesh = chunk.chunkObj.transform.Find("Mesh").gameObject;
+            GameObject mesh = chunk.meshObject.transform.Find("Mesh").gameObject;
 
             if (GeometryUtility.TestPlanesAABB(frustumPlanes, mesh.GetComponent<MeshRenderer>().bounds))
             {

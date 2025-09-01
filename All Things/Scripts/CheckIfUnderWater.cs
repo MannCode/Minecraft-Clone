@@ -34,9 +34,9 @@ public class CheckIfUnderWater : MonoBehaviour
             Mathf.FloorToInt(cameraT.position.z - c_z * meshGenerator.c_size)
         );
 
-        Chunk.Block block = chunk.getBlock(blockPos);
+        BlockData block = chunk.getBlock(blockPos);
 
-        if(block.type == "water") {
+        if(block.blockType == BlockData.BlockType.WATER) {
             volume.gameObject.SetActive(true);
         }
 
