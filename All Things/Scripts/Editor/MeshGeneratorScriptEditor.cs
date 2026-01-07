@@ -10,7 +10,7 @@ public class MeshGeneratorScriptEditor : Editor
     {
         MeshGenerator meshGenerator = (MeshGenerator)target;
 
-        meshGenerator.chunks = (GameObject)EditorGUILayout.ObjectField("Chunks", meshGenerator.chunks, typeof(GameObject), true);
+        meshGenerator.chunkContainer = (GameObject)EditorGUILayout.ObjectField("ChunkContainer", meshGenerator.chunkContainer, typeof(GameObject), true);
         meshGenerator.player = (GameObject)EditorGUILayout.ObjectField("Player", meshGenerator.player, typeof(GameObject), true);
 
         meshGenerator.material = (Material)EditorGUILayout.ObjectField("Material", meshGenerator.material, typeof(Material), true);

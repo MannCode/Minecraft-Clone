@@ -12,13 +12,12 @@ public class chunkCuller : MonoBehaviour
 
     void Update()
     {
-        Dictionary<string, Chunk> activeChunks = meshGenerator.activeChunk;
 
         // Get the frustum planes
         frustumPlanes = GeometryUtility.CalculateFrustumPlanes(cam);
 
         // Loop through each chunk
-        foreach (Chunk chunk in activeChunks.Values)
+        foreach (Chunk chunk in meshGenerator.renderedChunks.Values)
         {
             //if player is stanting on that chunk dont hide it
             if(chunk.c_x == Mathf.Floor(meshGenerator.player.transform.position.x / meshGenerator.c_size) && chunk.c_z == Mathf.Floor(meshGenerator.player.transform.position.z / meshGenerator.c_size)) {

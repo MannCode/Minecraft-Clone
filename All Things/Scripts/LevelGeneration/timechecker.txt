@@ -1,0 +1,3 @@
+float startTime = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
+float elapsedTime = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond - startTime;
+Debug.Log("CheckChange took: " + elapsedTime + " seconds");
