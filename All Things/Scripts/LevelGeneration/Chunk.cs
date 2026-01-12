@@ -12,7 +12,7 @@ using Icaria.Engine.Procedural;
 
 public class Chunk
 {
-    public BlockData[,,] blocks;
+    public Block[,,] blocks;
 
     public string chunkName;
     public GameObject meshObject;
@@ -58,7 +58,7 @@ public class Chunk
         this.c_z = c_z;
         this.chunkContainer = chunkContainer;
         // blocks = new Block[c_size + 2, c_height, c_size + 2];
-        blocks = new BlockData[c_size + 2, c_height, c_size + 2];
+        blocks = new Block[c_size + 2, c_height, c_size + 2];
 
 
 
@@ -142,6 +142,7 @@ public class Chunk
                 }
                 f_height = f_height + 0.5f - range / 2;
                 f_height = f_height + meshGenerator.heightOffset / c_height;
+                f_height = meshGenerator.heightCurve.Evaluate(f_height);
                 int height = Mathf.FloorToInt(f_height * c_height);
 
                 if (x < c_size - 1 && z < c_size - 1 && x >= 0 && z >= 0)
@@ -160,12 +161,11 @@ public class Chunk
                         {
                             if (height < 175)
                             {
-                                blocks[x + 1, y, z + 1] = new BlockData(BlockData.BlockType.SAND);
+                                blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.sand);
                             }
                             else
                             {
-                                blocks[x + 1, y, z + 1] = new BlockData(BlockData.BlockType.GRASS);
-
+                                blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.grass_block);
                                 //add grass plant on top of grass block
                                 float isSelected_block_for_grass = rng.getFloat((uint)(c_x * c_size + x), (uint)(c_z * c_size + z));
                                 if (isSelected_block_for_grass < 0.05f)
@@ -173,34 +173,34 @@ public class Chunk
                                     //make sure we don't go out of bounds
                                     if (y + 1 < c_height)
                                     {
-                                        blocks[x + 1, y + 1, z + 1] = new BlockData(BlockData.BlockType.P_GRASS);
+                                        blocks[x + 1, y + 1, z + 1] = new Block(BlockData.BlockType.short_grass);
                                     }
                                 }
                             }
                         }
                         else if (y >= Mathf.Floor(height) - dirtHeight)
                         {
-                            blocks[x + 1, y, z + 1] = new BlockData(BlockData.BlockType.DIRT);
+                            blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.dirt);
                         }
                         else if (y < bedrockLayerHeight)
                         {
-                            blocks[x + 1, y, z + 1] = new BlockData(BlockData.BlockType.BEDROCK);
+                            blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.bedrock);
                         }
                         else
                         {
                             // underground
-                            blocks[x + 1, y, z + 1] = new BlockData(BlockData.BlockType.STONE);
+                            blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.stone);
                         }
                     }
                     else
                     {
                         if (y < 170)
                         {
-                            blocks[x + 1, y, z + 1] = new BlockData(BlockData.BlockType.WATER);
+                            blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.water);
                         }
                         else
                         {
-                            blocks[x + 1, y, z + 1] = new BlockData(BlockData.BlockType.AIR);
+                            blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.air);
                         }
                     }
                 }
@@ -214,7 +214,7 @@ public class Chunk
         //     {
         //         for (int x = -1; x < c_size + 1; x++)
         //         {
-        //             if (blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.AIR && blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.WATER && blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.BEDROCK)
+        //             if (blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.air && blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.water && blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.BEDROCK)
         //             {
         //                 float opacity = 0;
         //                 float _amplitude = 0.1f;
@@ -238,7 +238,7 @@ public class Chunk
         //                 if (opacity > 0.55f)
         //                 {
         //                     blocks[x + 1, y, z + 1].isSolid = false;
-        //                     blocks[x + 1, y, z + 1].blockType = BlockData.BlockType.AIR;
+        //                     blocks[x + 1, y, z + 1].blockType = BlockData.BlockType.air;
         //                 }
         //             }
 
@@ -251,14 +251,14 @@ public class Chunk
             for(int x = 0; x < c_size; x++) {
                 // Check if the block is grass to plant a tree
                 int height = heights[x, z];
-                if(blocks[x+1,  height, z+1].blockType == BlockData.BlockType.GRASS && height > 0.4f*c_height) {
+                if(blocks[x+1,  height, z+1].blockType == BlockData.BlockType.grass_block && height > 0.4f*c_height) {
                     float isSelected_block_for_tree = rng.getFloat((uint)(c_x*c_size + x), (uint)(c_z*c_size + z));
 
                     // Debug.Log(isSelected_block_for_tree);                
                     if(isSelected_block_for_tree < 0.002f) {
                         for(int i=0; i<8; i++) {
                             if (i < 4) {
-                                blocks[x+1, height+1+i, z+1] = new BlockData(BlockData.BlockType.OAK_LOG);
+                                blocks[x+1, height+1+i, z+1] = new Block(BlockData.BlockType.oak_log);
                             }
                             else {
                                 int dia = 7 - i;
@@ -266,7 +266,7 @@ public class Chunk
                                     for(int t_z = -dia; t_z <= dia; t_z++) {
                                         try
                                         {
-                                            blocks[x+1 + t_x, height+1+i, z+1 + t_z] = new BlockData(BlockData.BlockType.LEAVES);
+                                            blocks[x+1 + t_x, height+1+i, z+1 + t_z] = new Block(BlockData.BlockType.oak_leaves);
                                         }
                                         catch (System.Exception)
                                         {
@@ -340,10 +340,10 @@ public class Chunk
             {
                 for (int block_x = 0; block_x < c_size; block_x++)
                 {
-                    BlockData currentBlock = blocks[block_x + 1, block_y, block_z + 1];
-                    if (currentBlock.blockType != BlockData.BlockType.AIR)
+                    Block currentBlock = blocks[block_x + 1, block_y, block_z + 1];
+                    if (currentBlock.blockType != BlockData.BlockType.air)
                     {
-                        if (currentBlock.blockType == BlockData.BlockType.P_GRASS)
+                        if (currentBlock.isCross)
                         {
                             // vertices
                             for (int i = 0; i < 8; i++)
@@ -366,29 +366,29 @@ public class Chunk
                             }
 
                             //uvs
-                            int x = currentBlock.textureCordsOffset[0];
-                            int y = currentBlock.textureCordsOffset[1];
+                            int x = currentBlock.blockTextureCords[0];
+                            int y = currentBlock.blockTextureCords[1];
 
                             for (int i=0; i<4; i++)
                             {
                                 addUV(uvs, x, y);
                                 // int brightnessOffset = rng.getInt((uint)(c_x * c_size + block_x), (uint)(c_z * c_size + block_z), 30, 50);
                                 // addfourColors(new Color(grassColor.r + brightnessOffset, grassColor.g + brightnessOffset, grassColor.b + brightnessOffset, grassColor.a));
-                                addfourColors(new Color(255, 255, 255, 255));
+                                addfourColors(grassColor);
                             }
                         }
                         else
                         {
                             bool[] faceConditions;
-                            if (currentBlock.blockType == BlockData.BlockType.WATER)
+                            if (currentBlock.blockType == BlockData.BlockType.water)
                             {
                                 faceConditions = new bool[] {
-                                    blocks[block_x+1, block_y, block_z+1].blockType.Equals(BlockData.BlockType.AIR), // front
-                                    blocks[block_x, block_y, block_z+1].blockType.Equals(BlockData.BlockType.AIR), // left
-                                    blocks[block_x+1, block_y, block_z+2].blockType.Equals(BlockData.BlockType.AIR), // back
-                                    blocks[block_x+2, block_y, block_z+1].blockType.Equals(BlockData.BlockType.AIR), // right
-                                    block_y == c_height-1 || blocks[block_x+1, block_y+1, block_z+1].blockType.Equals(BlockData.BlockType.AIR), // top
-                                    block_y != 0 && blocks[block_x+1, block_y-1, block_z+1].blockType.Equals(BlockData.BlockType.AIR), // bottom
+                                    blocks[block_x+1, block_y, block_z+1].blockType.Equals(BlockData.BlockType.air), // front
+                                    blocks[block_x, block_y, block_z+1].blockType.Equals(BlockData.BlockType.air), // left
+                                    blocks[block_x+1, block_y, block_z+2].blockType.Equals(BlockData.BlockType.air), // back
+                                    blocks[block_x+2, block_y, block_z+1].blockType.Equals(BlockData.BlockType.air), // right
+                                    block_y == c_height-1 || blocks[block_x+1, block_y+1, block_z+1].blockType.Equals(BlockData.BlockType.air), // top
+                                    block_y != 0 && blocks[block_x+1, block_y-1, block_z+1].blockType.Equals(BlockData.BlockType.air), // bottom
                                     // true, true, true, true, true, true
                                 };
                             }
@@ -412,7 +412,7 @@ public class Chunk
                             {
                                 if (faceConditions[face])
                                 {
-                                    if (currentBlock.blockType == BlockData.BlockType.WATER)
+                                    if (currentBlock.blockType == BlockData.BlockType.water)
                                     {
                                         // vertices
                                         for (int i = 0; i < 4; i++)
@@ -426,7 +426,7 @@ public class Chunk
                                         }
 
                                         //uvs
-                                        addUV(waterUvs, currentBlock.textureCordsOffset[0], currentBlock.textureCordsOffset[1]);
+                                        addUV(waterUvs, currentBlock.blockTextureCords[face * 2], currentBlock.blockTextureCords[face * 2 + 1]);
                                     }
                                     else
                                     {
@@ -444,15 +444,15 @@ public class Chunk
                                         }
 
                                         //uvs
-                                        int x = currentBlock.textureCordsOffset[face * 2];
-                                        int y = currentBlock.textureCordsOffset[face * 2 + 1];
+                                        int x = currentBlock.blockTextureCords[face * 2];
+                                        int y = currentBlock.blockTextureCords[face * 2 + 1];
                                         addUV(uvs, x, y);
 
 
                                         //colors
-                                        if (currentBlock.blockType == BlockData.BlockType.GRASS && face == 4)
+                                        if (currentBlock.blockType.ToString().Contains("leaves") || (currentBlock.blockType == BlockData.BlockType.grass_block && face == 4))
                                         {
-                                            addfourColors(new Color(255, 255, 255, 255));
+                                            addfourColors(grassColor);
                                         }
                                         else
                                         {
@@ -521,7 +521,7 @@ public class Chunk
 
 
 
-            GameObject waterMeshObject = new GameObject("WaterMesh")
+            GameObject waterMeshObject = new GameObject("waterMesh")
             {
                 tag = "Water"
             };
@@ -539,11 +539,15 @@ public class Chunk
 
     public void addUV(List<Vector2> _uvs, int x, int y)
     {
-        float pixelSize = 1f / 16f;
-        float x1 = x * pixelSize;
-        float x2 = (x + 1) * pixelSize;
-        float y1 = 1f - (y + 1) * pixelSize;
-        float y2 = 1f - y * pixelSize;
+        x = x / 16;
+        y = y / 16;
+        // texture atlas size is 544 * 544 with 16 * 16 textures
+        float atlasSize = 544f;
+        float textureSize = 16f;
+        float x1 = x * textureSize / atlasSize;
+        float y1 = 1f - (y + 1) * textureSize / atlasSize;
+        float x2 = (x + 1) * textureSize / atlasSize;
+        float y2 = 1f - y * textureSize / atlasSize;
 
         _uvs.AddRange(new[]
         {
@@ -567,11 +571,11 @@ public class Chunk
         GameObject.Destroy(meshObject);
     }
 
-    public BlockData getBlock(Vector3Int pos)
+    public Block getBlock(Vector3Int pos)
     {
         if (pos.x < 0 || pos.x >= c_size || pos.y < 0 || pos.y >= c_height || pos.z < 0 || pos.z >= c_size)
         {
-            return new BlockData(BlockData.BlockType.AIR);
+            return new Block(BlockData.BlockType.air);
         }
         return blocks[pos.x, pos.y, pos.z];
     }

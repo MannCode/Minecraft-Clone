@@ -23,10 +23,10 @@ public class CheckIfUnderWater : MonoBehaviour
 
         volume.gameObject.SetActive(false);
 
-        float c_x = Mathf.Floor(cameraT.position.x / meshGenerator.c_size);
-        float c_z = Mathf.Floor(cameraT.position.z / meshGenerator.c_size);
+        int c_x = Mathf.FloorToInt(cameraT.position.x / meshGenerator.c_size);
+        int c_z = Mathf.FloorToInt(cameraT.position.z / meshGenerator.c_size);
 
-        Chunk chunk = meshGenerator.renderedChunks[c_x + "_" + c_z];
+        Chunk chunk = meshGenerator.renderedChunks[new Vector2Int(c_x, c_z)];
         
         Vector3Int blockPos = new Vector3Int(
             Mathf.FloorToInt(cameraT.position.x - c_x * meshGenerator.c_size),
@@ -34,9 +34,9 @@ public class CheckIfUnderWater : MonoBehaviour
             Mathf.FloorToInt(cameraT.position.z - c_z * meshGenerator.c_size)
         );
 
-        BlockData block = chunk.getBlock(blockPos);
+        Block block = chunk.getBlock(blockPos);
 
-        if(block.blockType == BlockData.BlockType.WATER) {
+        if(block.blockType == BlockData.BlockType.water) {
             volume.gameObject.SetActive(true);
         }
 

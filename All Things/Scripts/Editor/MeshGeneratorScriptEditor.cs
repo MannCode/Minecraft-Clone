@@ -16,7 +16,7 @@ public class MeshGeneratorScriptEditor : Editor
         meshGenerator.material = (Material)EditorGUILayout.ObjectField("Material", meshGenerator.material, typeof(Material), true);
         meshGenerator.waterMaterial = (Material)EditorGUILayout.ObjectField("Water Material", meshGenerator.waterMaterial, typeof(Material), true);
 
-        meshGenerator.texture = (Texture2D)EditorGUILayout.ObjectField("Texture", meshGenerator.texture, typeof(Texture2D), true);
+        // meshGenerator.texture = (Texture2D)EditorGUILayout.ObjectField("Texture", meshGenerator.texture, typeof(Texture2D), true);
 
         meshGenerator.c_size = EditorGUILayout.IntField("Chunk Size", meshGenerator.c_size);
         meshGenerator.c_height = EditorGUILayout.IntField("Chunk Height", meshGenerator.c_height);
@@ -28,6 +28,8 @@ public class MeshGeneratorScriptEditor : Editor
         meshGenerator.heightOffset = EditorGUILayout.FloatField("Height Offset", meshGenerator.heightOffset);
         meshGenerator.octaves = EditorGUILayout.IntField("Octaves", meshGenerator.octaves);
         meshGenerator.seed = EditorGUILayout.IntField("Seed", meshGenerator.seed);
+
+        meshGenerator.heightCurve = EditorGUILayout.CurveField("Height Curve", meshGenerator.heightCurve);
 
         // button to reinitialize the chunks
         if (GUILayout.Button("Reinitialize Chunks"))
