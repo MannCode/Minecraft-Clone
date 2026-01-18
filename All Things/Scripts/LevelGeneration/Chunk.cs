@@ -7,11 +7,13 @@ using System;
 // using System.Threading;
 using Unity.VisualScripting;
 using Icaria.Engine.Procedural;
+using NUnit.Framework;
 
 
 
 public class Chunk
 {
+    public int[,] heights;
     public Block[,,] blocks;
 
     public string chunkName;
@@ -41,6 +43,19 @@ public class Chunk
     // some global variables
     private Color grassColor = new Color(90, 199, 89, 255);
 
+    Vector3Int[] directions =
+    {
+        Vector3Int.left,
+        Vector3Int.right,
+        Vector3Int.forward,
+        Vector3Int.back,
+        Vector3Int.up,
+        Vector3Int.down
+    };
+
+    public float waterLevel = 170f;
+    public float lavaLevel = 10f;
+
 
     // private float[,] heights;
     // private Block[,,] blocks;
@@ -57,19 +72,18 @@ public class Chunk
         this.c_x = c_x;
         this.c_z = c_z;
         this.chunkContainer = chunkContainer;
-        // blocks = new Block[c_size + 2, c_height, c_size + 2];
+        heights = new int[c_size + 2, c_size + 2];
         blocks = new Block[c_size + 2, c_height, c_size + 2];
 
+        rng = new RandomNumberGenerator(meshGenerator.seed);
 
-
-
-        rng = new RandomNumberGenerator((int)(meshGenerator.seed + (uint)(c_x * 73856093) + (uint)(c_z * 19349663)));
-
+        // world mesh
         vertices = new List<Vector3>();
         uvs = new List<Vector2>();
         triangles = new List<int>();
         colors = new List<Color>();
 
+        // water mesh
         waterVertices = new List<Vector3>();
         waterUvs = new List<Vector2>();
         waterTriangles = new List<int>();
@@ -103,14 +117,12 @@ public class Chunk
     public void generateTerrainData()
     {
         // Terrain Generation
-
-        //Store heights for tree placement
-        int[,] heights = new int[c_size, c_size];
-
         for (int z = -1; z < c_size + 1; z++)
         {
+            int worldZ = c_z * c_size + z;
             for (int x = -1; x < c_size + 1; x++)
             {
+                int worldX = c_x * c_size + x;
                 // // float _y = y / (float)c_height;
                 // float isVisible = 0;
                 // float _amplitude = amplitude;
@@ -135,7 +147,7 @@ public class Chunk
                 for (int i = 0; i < _octaves; i++)
                 {
                     // height += _amplitude * Mathf.PerlinNoise((c_x*c_size + x) * _frequency + meshGenerator.randomOffset.x, (c_z*c_size + z) * _frequency + meshGenerator.randomOffset.z);
-                    f_height += _amplitude * IcariaNoise.GradientNoise((c_x * c_size + x) * _frequency + meshGenerator.randomOffset.x, (c_z * c_size + z) * _frequency + meshGenerator.randomOffset.z);
+                    f_height += _amplitude * IcariaNoise.GradientNoise(worldX * _frequency + meshGenerator.randomOffset.x, worldZ * _frequency + meshGenerator.randomOffset.z);
                     _amplitude *= 0.5f;
                     _frequency *= 2;
                     range += _amplitude;
@@ -150,14 +162,16 @@ public class Chunk
                     heights[x + 1, z + 1] = height;
                 }
 
-                int dirtHeight = rng.getInt((uint)(c_x * c_size + x), (uint)(c_z * c_size + z), 3, 6);
-                int bedrockLayerHeight = rng.getInt((uint)(c_x * c_size + x), (uint)(c_z * c_size + z), 1, 3);
 
-                for (int y = c_height-1; y >= 0; y--)
+
+                int dirtHeight = rng.getInt((uint)worldX, (uint)worldZ, 3, 6);
+                int bedrockLayerHeight = rng.getInt((uint)worldX, (uint)worldZ, 1, 3);
+
+                for (int y = c_height - 1; y >= 0; y--)
                 {
-                    if (y < height)
+                    if (y < height + 1)
                     {
-                        if (y == Mathf.Floor(height) - 1)
+                        if (y == Mathf.Floor(height))
                         {
                             if (height < 175)
                             {
@@ -166,16 +180,6 @@ public class Chunk
                             else
                             {
                                 blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.grass_block);
-                                //add grass plant on top of grass block
-                                float isSelected_block_for_grass = rng.getFloat((uint)(c_x * c_size + x), (uint)(c_z * c_size + z));
-                                if (isSelected_block_for_grass < 0.05f)
-                                {
-                                    //make sure we don't go out of bounds
-                                    if (y + 1 < c_height)
-                                    {
-                                        blocks[x + 1, y + 1, z + 1] = new Block(BlockData.BlockType.short_grass);
-                                    }
-                                }
                             }
                         }
                         else if (y >= Mathf.Floor(height) - dirtHeight)
@@ -190,11 +194,51 @@ public class Chunk
                         {
                             // underground
                             blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.stone);
+
+                            // add ores underground
+                            if (y < 0.3f * c_height)
+                            {
+                                float isSelected_block_for_diamond = rng.getFloat((uint)worldX, (uint)y, (uint)worldZ);
+                                float d_chance_modifier = (1f - ((float)y / (0.3f * c_height))) * 0.0003f; // more chance to spawn diamond ore at lower depth
+
+                                if (isSelected_block_for_diamond < d_chance_modifier)
+                                {
+                                    // cluster of diamond ore
+                                    GenerateOreVein(x, y, z, 1, 7, BlockData.BlockType.diamond_ore);
+                                    // blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.diamond_ore);
+                                }
+                            }
+
+                            if (y < 0.7f * c_height)
+                            {
+                                float isSelected_block_for_iron = rng.getFloat((uint)worldX, (uint)y, (uint)worldZ);
+
+                                if (isSelected_block_for_iron < 0.0006f)
+                                {
+                                    // cluster of iron ore
+                                    GenerateOreVein(x, y, z, 3, 10, BlockData.BlockType.iron_ore);
+                                }
+                            }
+                            if (y < 0.9f * c_height)
+                            {
+                                float isSelected_block_for_coal = rng.getFloat((uint)worldX, (uint)y, (uint)worldZ);
+                                float chance_modifier = 0.0015f;
+                                if (y < 0.5f * c_height)
+                                {
+                                    chance_modifier = (float)y / (0.5f * c_height) * 0.0015f; // less chance to spawn coal ore at lower depth
+                                }
+
+                                if (isSelected_block_for_coal < chance_modifier)
+                                {
+                                    // cluster of coal ore
+                                    GenerateOreVein(x, y, z, 4, 12, BlockData.BlockType.coal_ore);
+                                }
+                            }
                         }
                     }
                     else
                     {
-                        if (y < 170)
+                        if (y < waterLevel)
                         {
                             blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.water);
                         }
@@ -207,84 +251,233 @@ public class Chunk
             }
         }
 
-        // //caves Generation
-        // for (int y = 0; y < c_height; y++)
-        // {
-        //     for (int z = -1; z < c_size + 1; z++)
-        //     {
-        //         for (int x = -1; x < c_size + 1; x++)
-        //         {
-        //             if (blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.air && blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.water && blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.BEDROCK)
-        //             {
-        //                 float opacity = 0;
-        //                 float _amplitude = 0.1f;
-        //                 float _frequency = 0.03f;
-        //                 float range = _amplitude;
-        //                 float _octaves = 7;
-        //                 for (int i = 0; i < _octaves; i++)
-        //                 {
-        //                     opacity += _amplitude * PerlinNoise3D((c_x * c_size + x) * _frequency + meshGenerator.randomOffset.x, y * _frequency + meshGenerator.randomOffset.y, (c_z * c_size + z) * _frequency + meshGenerator.randomOffset.z);
-        //                     _amplitude *= 0.5f;
-        //                     _frequency *= 2;
-        //                     range += _amplitude;
-        //                 }
-        //                 opacity = opacity / range;
-        //                 // float gap = (1f-(float)y / c_height) * 0.05f;
-        //                 float gap = 0.005f;
-        //                 // if(opacity > 0.5f - gap && opacity < 0.5f + gap) {
-        //                 //     blocks[x+1, y, z+1].isOpaque = false;
-        //                 //     blocks[x+1, y, z+1].type = "air";
-        //                 // }
-        //                 if (opacity > 0.55f)
-        //                 {
-        //                     blocks[x + 1, y, z + 1].isSolid = false;
-        //                     blocks[x + 1, y, z + 1].blockType = BlockData.BlockType.air;
-        //                 }
-        //             }
+        //caves Generation
+        for (int z = -1; z < c_size + 1; z++)
+        {
+            int worldZ = c_z * c_size + z;
+            for (int x = -1; x < c_size + 1; x++)
+            {
+                int worldX = c_x * c_size + x;
+                for (int y = 0; y < c_height; y++)
+                {
+                    if (blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.air && blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.water && blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.bedrock)
+                    {
+                        // long caves and big caves
+                        float _amplitude = 1f;
+                        float _frequency = meshGenerator.long_caveFrequency;
+                        float range = _amplitude;
+                        float _octaves = meshGenerator.long_caveOctaves;
 
-        //         }
-        //     }
-        // }
+                        float noise1_opactiy = 0;
+                        float noise2_opacity = 0;
+                        for (int i = 0; i < _octaves; i++)
+                        {
+                            noise1_opactiy += _amplitude * IcariaNoise.GradientNoise3D(worldX * _frequency * 0.6f + meshGenerator.randomOffset.x, y * _frequency + meshGenerator.randomOffset.y, worldZ * _frequency * 0.6f + meshGenerator.randomOffset.z);
+                            noise2_opacity += _amplitude * IcariaNoise.GradientNoise3D(worldX * _frequency * 0.6f + meshGenerator.randomOffset.x + 100000f, y * _frequency + meshGenerator.randomOffset.y + 100000f, worldZ * _frequency * 0.6f + meshGenerator.randomOffset.z + 100000f);
+                            _amplitude *= 0.5f;
+                            _frequency *= 2;
+                            range += _amplitude;
+                        }
+                        noise1_opactiy = MathF.Abs(noise1_opactiy / range);
+                        noise2_opacity = MathF.Abs(noise2_opacity / range);
 
-        // Additional Features Generation (e.g., Trees) can be added here
-        for(int z = 0; z < c_size; z++) {
-            for(int x = 0; x < c_size; x++) {
-                // Check if the block is grass to plant a tree
-                int height = heights[x, z];
-                if(blocks[x+1,  height, z+1].blockType == BlockData.BlockType.grass_block && height > 0.4f*c_height) {
-                    float isSelected_block_for_tree = rng.getFloat((uint)(c_x*c_size + x), (uint)(c_z*c_size + z));
-
-                    // Debug.Log(isSelected_block_for_tree);                
-                    if(isSelected_block_for_tree < 0.002f) {
-                        for(int i=0; i<8; i++) {
-                            if (i < 4) {
-                                blocks[x+1, height+1+i, z+1] = new Block(BlockData.BlockType.oak_log);
+                        float depth = 1f - ((float)y / (float)c_height);
+                        depth = Mathf.Clamp(depth, 0f, 1f);
+                        float opacity = noise1_opactiy + noise2_opacity;
+                        float gap = Mathf.Lerp(meshGenerator.long_caveGapTop, meshGenerator.long_caveGapBottom, depth);
+                        if (opacity < gap)
+                        {
+                            if (y < lavaLevel)
+                            {
+                                blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.lava);
                             }
-                            else {
-                                int dia = 7 - i;
-                                for(int t_x = -dia; t_x <= dia; t_x++) {
-                                    for(int t_z = -dia; t_z <= dia; t_z++) {
-                                        try
-                                        {
-                                            blocks[x+1 + t_x, height+1+i, z+1 + t_z] = new Block(BlockData.BlockType.oak_leaves);
-                                        }
-                                        catch (System.Exception)
-                                        {
-                                            Debug.Log("out of range");
-                                        }
-                                    }
-                                }
+                            else
+                            {
+                                blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.air);
                             }
+                        }
+
+                        // big caves
+                        float _amplitude_b = 1f;
+                        float _frequency_b = meshGenerator.big_caveFrequency;
+                        float range_b = _amplitude_b;
+                        float _octaves_b = meshGenerator.big_caveOctaves;
+                        float noise_b_opacity = 0;
+
+                        for (int i = 0; i < _octaves_b; i++)
+                        {
+                            noise_b_opacity += _amplitude_b * IcariaNoise.GradientNoise3D(worldX * _frequency_b * 0.6f + meshGenerator.randomOffset.x + 20000f, y * _frequency_b + meshGenerator.randomOffset.y + 20000f, worldZ * _frequency_b * 0.6f + meshGenerator.randomOffset.z + 20000f);
+                            _amplitude_b *= 0.5f;
+                            _frequency_b *= 2;
+                            range_b += _amplitude_b;
+                        }
+                        noise_b_opacity = ((noise_b_opacity / range_b) + 1f) / 2f;
+                        float big_opacity = noise_b_opacity;
+                        float big_gap = Mathf.Lerp(meshGenerator.big_caveGapTop, meshGenerator.big_caveGapBottom, depth);
+                        if (big_opacity < big_gap)
+                        {
+                            // float is_selected_for_pillar = rng.getFloat((uint)worldX, (uint)worldZ);
+
+                            // if (is_selected_for_pillar < 0.003f)
+                            // {
+                            //     // float edge_dist = big_opacity / big_gap;
+                            //     // int pillar_width = (int)(edge_dist * 3f);
+                            //     // // for (int px = -pillar_width; px <= pillar_width; px++)
+                            //     // // {
+                            //     // //     for (int pz = -pillar_width; pz <= pillar_width; pz++)
+                            //     // //     {
+                            //     // //         // do nothing, leave pillar blocks
+                            //     // //     }
+                            //     // // }
+
+                            //     // x += pillar_width;
+                            //     // z += pillar_width;
+
+                            //     // if (x > c_size)
+                            //     // {
+                            //     //     x = c_size - 1;
+                            //     // }
+                            //     // if (z > c_size)
+                            //     // {
+                            //     //     z = c_size - 1;
+                            //     // }
+                            // }
+                            // else
+                            // {
+                            //     if (y < lavaLevel)
+                            //     {
+                            //         blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.lava);
+                            //     }
+                            //     else
+                            //     {
+                            //         blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.air);
+                            //     }
+                            // }
                         }
                     }
                 }
             }
         }
+
+        // // Additional Features Generation (e.g., Trees, ores) can be added here
+        // for (int z = 0; z < c_size; z++)
+        // {
+        //     int worldZ = c_z * c_size + z;
+        //     for (int x = 0; x < c_size; x++)
+        //     {
+        //         int worldX = c_x * c_size + x;
+        //         // Check if the block is grass to plant a tree
+        //         int height = heights[x, z];
+
+        //         if (blocks[x, height, z].blockType == BlockData.BlockType.grass_block && height > waterLevel)
+        //         {
+        //             float isSelected_block_for_tree = rng.getFloat((uint)worldX, (uint)worldZ);
+
+        //             // Debug.Log(isSelected_block_for_tree);                
+        //             if (isSelected_block_for_tree < 0.002f)
+        //             {
+        //                 for (int i = 0; i < 8; i++)
+        //                 {
+        //                     if (i < 4)
+        //                     {
+        //                         blocks[x, height + 1 + i, z] = new Block(BlockData.BlockType.oak_log);
+        //                     }
+        //                     else
+        //                     {
+        //                         int dia = 7 - i;
+        //                         for (int t_x = -dia; t_x <= dia; t_x++)
+        //                         {
+        //                             for (int t_z = -dia; t_z <= dia; t_z++)
+        //                             {
+        //                                 try
+        //                                 {
+        //                                     blocks[x + t_x, height + 1 + i, z + t_z] = new Block(BlockData.BlockType.oak_leaves);
+        //                                 }
+        //                                 catch (System.Exception)
+        //                                 {
+        //                                     Debug.Log("out of range");
+        //                                 }
+        //                             }
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //             else
+        //             {
+        //                 //add grass plant on top of grass block
+        //                 float isSelected_block_for_grass = rng.getFloat((uint)worldX, (uint)worldZ);
+        //                 if (isSelected_block_for_grass < 0.05f)
+        //                 {
+        //                     //make sure we don't go out of bounds
+        //                     if (height + 1 < c_height)
+        //                     {
+        //                         blocks[x, height + 1, z] = new Block(BlockData.BlockType.short_grass);
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+
+        // only show specific blocks for testing
+        // for (int y = 0; y < c_height; y++)
+        // {
+        //     for (int z = 0; z < c_size; z++)
+        //     {
+        //         for (int x = 0; x < c_size; x++)
+        //         {
+        //             if (blocks[x+1, y, z+1].blockType != BlockData.BlockType.iron_ore &&
+        //                 blocks[x+1, y, z+1].blockType != BlockData.BlockType.grass_block)
+        //             {
+        //                 blocks[x+1, y, z+1] = new Block(BlockData.BlockType.air);
+        //             }
+        //         }
+        //     }
+        // }
     }
 
     public float myClamp(float val)
     {
         return math.pow((val * 2 - 1), 3);
+    }
+
+    void GenerateOreVein(int startX, int startY, int startZ, int veinSizeMin, int veinSizeMax, BlockData.BlockType oreType)
+    {
+        int veinSize = rng.getInt((uint)startX, (uint)startY, (uint)startZ, veinSizeMin, veinSizeMax);
+
+        Queue<Vector3Int> queue = new Queue<Vector3Int>();
+        queue.Enqueue(new Vector3Int(startX, startY, startZ));
+
+        int placed = 0;
+
+        while (queue.Count > 0 && placed < veinSize)
+        {
+            Vector3Int pos = queue.Dequeue();
+
+            if (!InBounds(pos)) continue;
+
+            ref Block block = ref blocks[pos.x, pos.y, pos.z];
+
+            if (block.blockType != BlockData.BlockType.stone)
+                continue;
+
+            block = new Block(oreType);
+            placed++;
+
+            // Randomly spread
+            foreach (Vector3Int dir in directions)
+            {
+                if (rng.getFloat((uint)pos.x, (uint)pos.y, (uint)pos.z) < 0.8f)
+                    queue.Enqueue(pos + dir);
+            }
+        }
+    }
+
+    bool InBounds(Vector3Int p)
+    {
+        return p.x > 0 && p.x < c_size - 1 &&
+            p.y > 0 && p.y < c_height - 1 &&
+            p.z > 0 && p.z < c_size - 1;
     }
 
 
@@ -356,7 +549,7 @@ public class Chunk
                             }
 
                             // revered vertices
-                            for (int i = 8-1; i >= 0; i--)
+                            for (int i = 8 - 1; i >= 0; i--)
                             {
                                 vertices.Add(new Vector3(
                                     block_x + (p_vertices[i * 3] == 1 ? 0.854f : 0.146f),
@@ -369,7 +562,7 @@ public class Chunk
                             int x = currentBlock.blockTextureCords[0];
                             int y = currentBlock.blockTextureCords[1];
 
-                            for (int i=0; i<4; i++)
+                            for (int i = 0; i < 4; i++)
                             {
                                 addUV(uvs, x, y);
                                 // int brightnessOffset = rng.getInt((uint)(c_x * c_size + block_x), (uint)(c_z * c_size + block_z), 30, 50);
@@ -380,21 +573,23 @@ public class Chunk
                         else
                         {
                             bool[] faceConditions;
-                            if (currentBlock.blockType == BlockData.BlockType.water)
+                            if (currentBlock.blockType == BlockData.BlockType.water || currentBlock.blockType == BlockData.BlockType.lava)
                             {
+                                float level = (currentBlock.blockType == BlockData.BlockType.water) ? waterLevel : lavaLevel;
+
                                 faceConditions = new bool[] {
                                     blocks[block_x+1, block_y, block_z+1].blockType.Equals(BlockData.BlockType.air), // front
                                     blocks[block_x, block_y, block_z+1].blockType.Equals(BlockData.BlockType.air), // left
                                     blocks[block_x+1, block_y, block_z+2].blockType.Equals(BlockData.BlockType.air), // back
                                     blocks[block_x+2, block_y, block_z+1].blockType.Equals(BlockData.BlockType.air), // right
-                                    block_y == c_height-1 || blocks[block_x+1, block_y+1, block_z+1].blockType.Equals(BlockData.BlockType.air), // top
+                                    block_y == c_height-1 || (!blocks[block_x+1, block_y+1, block_z+1].blockType.Equals(currentBlock.blockType) && block_y == level-1), // top
                                     block_y != 0 && blocks[block_x+1, block_y-1, block_z+1].blockType.Equals(BlockData.BlockType.air), // bottom
                                     // true, true, true, true, true, true
                                 };
                             }
                             else
                             {
-                                    faceConditions = new bool[] {
+                                faceConditions = new bool[] {
                                     !blocks[block_x+1, block_y, block_z].isSolid, // front
                                     !blocks[block_x, block_y, block_z+1].isSolid, // left
                                     !blocks[block_x+1, block_y, block_z+2].isSolid, // back
@@ -412,7 +607,7 @@ public class Chunk
                             {
                                 if (faceConditions[face])
                                 {
-                                    if (currentBlock.blockType == BlockData.BlockType.water)
+                                    if (currentBlock.blockType == BlockData.BlockType.water || currentBlock.blockType == BlockData.BlockType.lava)
                                     {
                                         // vertices
                                         for (int i = 0; i < 4; i++)
@@ -562,7 +757,7 @@ public class Chunk
     {
         for (int i = 0; i < 4; i++)
         {
-            colors.Add(color/255f);
+            colors.Add(color / 255f);
         }
     }
 
@@ -583,50 +778,63 @@ public class Chunk
 
 public class RandomNumberGenerator
 {
-    static uint prime = 4294967291;
-    static uint ord = 4294967290;
-    static uint generator = 4294967279;
-    static uint sy;
-    static uint xs;
-    static uint xy;
+    static readonly uint prime = 4294967291;
+    static readonly uint ord = 4294967290;
+    static readonly uint generator = 4294967279;
 
-    static int seed;
+    int seed;
 
     public RandomNumberGenerator(int seed)
     {
-        RandomNumberGenerator.seed = seed;
+        this.seed = seed;
     }
 
-    public float getFloat(uint x, uint y)
+    public float getFloat(uint x, uint z)
     {
-        //will return values 1=> x >0; replace 'ord' with 'prime' to get 1> x >0
-        //one call to modPow would be enough if all data fits into an ulong
-        sy = modPow(generator, (((ulong)seed) << 32) + (ulong)y, prime);
-        xs = modPow(generator, (((ulong)x) << 32) + (ulong)seed, prime);
-        xy = modPow(generator, (((ulong)sy) << 32) + (ulong)xy, prime);
-        return ((float)xy) / ord;
+        uint sy = ModPow(generator, (((ulong)seed) << 32) | z, prime);
+        uint xs = ModPow(generator, (((ulong)x) << 32) | (ulong)seed, prime);
+        uint xy = ModPow(generator, (((ulong)sy) << 32) | xs, prime);
+
+        return (float)xy / ord;
     }
 
-    public int getInt(uint x, uint y, int min, int max)
+    public float getFloat(uint x, uint y, uint z)
     {
-        float val = getFloat(x, y);
+        uint sy = ModPow(generator, (((ulong)seed) << 32) | y, prime);
+        uint xs = ModPow(generator, (((ulong)x) << 32) | (ulong)seed, prime);
+        uint sz = ModPow(generator, (((ulong)seed) << 32) | z, prime);
+        uint xyz = ModPow(generator, (((ulong)sy) << 32) | xs, prime);
+        uint xyz_final = ModPow(generator, (((ulong)xyz) << 32) | sz, prime);
+
+        return (float)xyz_final / ord;
+    }
+
+    public int getInt(uint x, uint z, int min, int max)
+    {
+        float val = getFloat(x, z);
         return Mathf.FloorToInt(val * (max - min)) + min;
     }
-    static ulong b;
-    static ulong ret;
-    static uint modPow(uint bb, ulong e, uint m)
+
+    public int getInt(uint x, uint y, uint z, int min, int max)
     {
-        b = bb;
-        ret = 1;
+        float val = getFloat(x, y, z);
+        return Mathf.FloorToInt(val * (max - min)) + min;
+    }
+
+
+    static uint ModPow(uint b, ulong e, uint m)
+    {
+        ulong result = 1;
+        ulong baseVal = b;
+
         while (e > 0)
         {
-            if (e % 2 == 1)
-            {
-                ret = (ret * b) % m;
-            }
-            e = e >> 1;
-            b = (b * b) % m;
+            if ((e & 1) == 1)
+                result = (result * baseVal) % m;
+
+            e >>= 1;
+            baseVal = (baseVal * baseVal) % m;
         }
-        return (uint)ret;
+        return (uint)result;
     }
 }

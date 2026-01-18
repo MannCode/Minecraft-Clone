@@ -14,7 +14,7 @@ public class Block
 
         blockTextureCords = BlockDatabase.GetTextureCoords(blockType, out isCross);
 
-        if(blockType == BlockData.BlockType.air || blockType == BlockData.BlockType.water || blockType.ToString().Contains("leaves") || isCross)
+        if(blockType == BlockData.BlockType.air || blockType == BlockData.BlockType.water || blockType == BlockData.BlockType.lava || blockType.ToString().Contains("leaves") || isCross)
         {
             isSolid = false;
         }

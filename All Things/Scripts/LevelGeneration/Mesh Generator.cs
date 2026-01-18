@@ -8,11 +8,13 @@ using System;
 using System.Linq;
 using UnityEditor;
 using Unity.Mathematics;
+using UnityEngine.UI;
 
 public class MeshGenerator : MonoBehaviour
 {
     public GameObject chunkContainer;
     public GameObject player;
+    public Image loadingScreen;
 
     public Material material;
     public Material waterMaterial;
@@ -23,14 +25,28 @@ public class MeshGenerator : MonoBehaviour
     public int c_height;
     public int size;
 
+    // terrain noise parameters
+    public bool randomSeed = true;
+    public int seed;
     public float amplitude;
     public float frequency;
-    public float squashingFactor;
     public float heightOffset;
     public int octaves;
-    public int seed;
-
     public AnimationCurve heightCurve;
+
+    // Cave noise parameters
+    public float long_caveAmplitude;
+    public float long_caveFrequency;
+    public float long_caveOctaves;
+    public float long_caveGapTop;
+    public float long_caveGapBottom;
+
+
+    public float big_caveAmplitude;
+    public float big_caveFrequency;
+    public float big_caveOctaves;
+    public float big_caveGapTop;
+    public float big_caveGapBottom;
 
     Thread calculationThread;
     Vector3 playerPosition;
@@ -38,15 +54,18 @@ public class MeshGenerator : MonoBehaviour
     [HideInInspector]
     public Vector3 randomOffset;
 
+
     public Dictionary<Vector2Int, Chunk> renderedChunks = new Dictionary<Vector2Int, Chunk>();
     public Dictionary<Vector2Int, Chunk> initializedChunks = new Dictionary<Vector2Int, Chunk>();
 
     public Dictionary<Vector2Int, Chunk> uninitializedChunks = new Dictionary<Vector2Int, Chunk>();
+    public Queue<Vector2Int> unitializedChunkQueue = new Queue<Vector2Int>();
+
     public Dictionary<Vector2Int, Chunk> deletionChunks = new Dictionary<Vector2Int, Chunk>();
 
     // public bool isRenderingState = false;
     int currentlyRunningThreads;
-    float renderCooldown = 0.03f;
+    bool firstGenerationDone = false;
     // faces
     // 0 = front, 1 = left, 2 = back, 3 = right, 4 = top, 5 = bottom
 
@@ -56,20 +75,8 @@ public class MeshGenerator : MonoBehaviour
     }
     void Start()
     {
-        // BlockDatabase.Init();  
-
-        seed = UnityEngine.Random.Range(0, 1000000);
-        UnityEngine.Random.InitState(seed);
-        randomOffset = new Vector3(UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000));
-        // randomOffset = new Vector3(0, 0, 0);
-
-        // texture.mipMapBias = -4;
-        // texture.Apply();
-        // material.mainTexture = texture;
-
-        bool yo = ThreadPool.SetMaxThreads(10, 10);
-        Debug.Log("Set max threads: " + yo);
-
+        reintialize();
+        
         calculationThread = new Thread(() =>
         {
             while (true)
@@ -80,7 +87,7 @@ public class MeshGenerator : MonoBehaviour
         });
         calculationThread.Start();
 
-        ThreadPool.SetMinThreads(10, 10);
+        ThreadPool.SetMaxThreads(10, 10);
     }
 
     void Update()
@@ -95,11 +102,6 @@ public class MeshGenerator : MonoBehaviour
         // render last chunk from initializedChunks per frame
         else if (initializedChunks.Count > 0)
         {
-            // if(renderCooldown > 0f) {
-            //     renderCooldown -= Time.deltaTime;
-            //     return;
-            // }
-            // float startTime = Time.realtimeSinceStartup;
             Vector2Int key = new List<Vector2Int>(initializedChunks.Keys)[0];
             Chunk chunk = initializedChunks[key];
             if(chunk.isGenerated && !chunk.isRendering) {
@@ -107,18 +109,17 @@ public class MeshGenerator : MonoBehaviour
                 chunk.renderChunk(material, waterMaterial);
                 renderedChunks.Add(key, chunk);
                 initializedChunks.Remove(key);
-                currentlyRunningThreads--;
-                // renderCooldown = 0.001f;
+                Interlocked.Decrement(ref currentlyRunningThreads);
             }
             // float elapsedTime = Time.realtimeSinceStartup - startTime;
             // Debug.Log("Rendering chunk: " + elapsedTime.ToString("F8") + " seconds");
         }
         // initialize five chunks from uninitializedChunks per frame
-        else if (uninitializedChunks.Count > 0 && currentlyRunningThreads <= 5)
+        else if (uninitializedChunks.Count > 0 && currentlyRunningThreads <= 10)
         {
             //remove last five chunks from uninitializedChunks and generate them
             // List<string> keys = new List<string>(uninitializedChunks.Keys);
-            Vector2Int key = new List<Vector2Int>(uninitializedChunks.Keys)[0];
+            var key = unitializedChunkQueue.Dequeue();
             Chunk chunk = uninitializedChunks[key];
 
             // float startTime = Time.realtimeSinceStartup;
@@ -127,9 +128,8 @@ public class MeshGenerator : MonoBehaviour
 
             ThreadPool.QueueUserWorkItem(state =>
             {
-                currentlyRunningThreads++;
-                chunk.generateChunkData();
-                // Thread.Sleep(1);
+                Interlocked.Increment(ref currentlyRunningThreads);
+                chunk.generateChunkData();;
             });
 
             initializedChunks.Add(key, chunk);
@@ -137,6 +137,23 @@ public class MeshGenerator : MonoBehaviour
             // float elapsedTime = Time.realtimeSinceStartup - startTime;
             // Debug.Log("Intializing chunk: " + elapsedTime.ToString("F8") + " seconds");
 
+        }
+
+        if(!firstGenerationDone && uninitializedChunks.Count == 0 && initializedChunks.Count == 0 && renderedChunks.Count > 0) {
+            firstGenerationDone = true;
+            float yPos = c_height;
+            Chunk midChunk = renderedChunks[new Vector2Int(0, 0)];
+            while(yPos > 0)
+            {
+                Block block = midChunk.getBlock(new Vector3Int(0, Mathf.FloorToInt(yPos), 0));
+                if(block != null && block.blockType != BlockData.BlockType.air) {
+                    break;
+                }
+                yPos--;
+            }
+            player.transform.position = new Vector3(0,  yPos+1, 0);
+            player.SetActive(true);
+            loadingScreen.gameObject.SetActive(false);
         }
 
     }
@@ -190,14 +207,6 @@ public class MeshGenerator : MonoBehaviour
             steps++;
         }
 
-        // for (int z = -size / 2; z < size / 2; z++)
-        // {
-        //     for (int x = -size / 2; x < size / 2; x++)
-        //     {
-                
-        //     }
-        // }
-
         List<Vector2Int> keys = new List<Vector2Int>(renderedChunks.Keys);
         keys.AddRange(new List<Vector2Int>(initializedChunks.Keys));
         keys.AddRange(new List<Vector2Int>(uninitializedChunks.Keys));
@@ -218,6 +227,7 @@ public class MeshGenerator : MonoBehaviour
                 }
                 else if(uninitializedChunks.ContainsKey(key)) {
                     deletionChunks.Add(key, uninitializedChunks[key]);
+                    unitializedChunkQueue = new Queue<Vector2Int>(unitializedChunkQueue.Where(k => k != key));
                     uninitializedChunks.Remove(key);
                 }
                 }
@@ -229,20 +239,39 @@ public class MeshGenerator : MonoBehaviour
     {
         Chunk chunk = new Chunk(this, c_x, c_z, chunkContainer);
         uninitializedChunks.Add(new Vector2Int(c_x, c_z), chunk);
+        unitializedChunkQueue.Enqueue(new Vector2Int(c_x, c_z));
     }
 
     public void reintialize()
     {
+
         foreach (KeyValuePair<Vector2Int, Chunk> chunk in renderedChunks)
+        {
+            chunk.Value.destroyChunk();
+        }
+        foreach (KeyValuePair<Vector2Int, Chunk> chunk in initializedChunks)
+        {
+            chunk.Value.destroyChunk();
+        }
+        foreach (KeyValuePair<Vector2Int, Chunk> chunk in deletionChunks)
         {
             chunk.Value.destroyChunk();
         }
         renderedChunks.Clear();
         initializedChunks.Clear();
-        // uninitializedChunks.Clear();
-        // randomOffset = new Vector3(UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000));
-        randomOffset = new Vector3(0, 0, 0);
-        // CheckChange();
+        uninitializedChunks.Clear();
+        unitializedChunkQueue.Clear();
+        deletionChunks.Clear();
+        
+        player.transform.position = new Vector3(0, 0, 0);
+        player.SetActive(false);
+        firstGenerationDone = false;
+        loadingScreen.gameObject.SetActive(true);
+        
+
+        if(randomSeed) seed = UnityEngine.Random.Range(0, 1000000);
+        UnityEngine.Random.InitState(seed);
+        randomOffset = new Vector3(UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000));
     }
 
     void deleteOldestChunk()

@@ -20,5 +20,9 @@ public class BlockData
         sand,
         oak_log,
         oak_leaves,
+        coal_ore,
+        iron_ore,
+        diamond_ore,
+        lava,
     }
 }
