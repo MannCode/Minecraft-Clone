@@ -4,10 +4,7 @@ using UnityEngine;
 using Unity.Mathematics;
 using UnityEngine.InputSystem.Interactions;
 using System;
-// using System.Threading;
-using Unity.VisualScripting;
 using Icaria.Engine.Procedural;
-using NUnit.Framework;
 
 
 
@@ -53,9 +50,6 @@ public class Chunk
         Vector3Int.down
     };
 
-    public float waterLevel = 170f;
-    public float lavaLevel = 10f;
-
 
     // private float[,] heights;
     // private Block[,,] blocks;
@@ -63,7 +57,7 @@ public class Chunk
     private Mesh mesh;
     private Mesh waterMesh;
 
-    public Chunk(MeshGenerator meshGenerator, int c_x, int c_z, GameObject chunkContainer)
+    public Chunk(MeshGenerator meshGenerator, int c_x, int c_z)
     {
         this.meshGenerator = meshGenerator;
         this.chunkName = "Chunk" + c_x + "_" + c_z;
@@ -71,7 +65,7 @@ public class Chunk
         this.c_height = meshGenerator.c_height;
         this.c_x = c_x;
         this.c_z = c_z;
-        this.chunkContainer = chunkContainer;
+        this.chunkContainer = meshGenerator.chunkContainer;
         heights = new int[c_size + 2, c_size + 2];
         blocks = new Block[c_size + 2, c_height, c_size + 2];
 
@@ -139,23 +133,39 @@ public class Chunk
 
                 // float density = 1 - (float)y / c_height * squashingFactor;
                 // density = myClamp(density);
-                float f_height = 0;
-                float _amplitude = meshGenerator.amplitude;
-                float _frequency = meshGenerator.frequency;
-                float range = _amplitude;
-                int _octaves = meshGenerator.octaves;
+                float cntns_height = 0;
+                float ersn_height = 0;
+                float pv_height = 0;
+                float _amplitude = 1f;
+                float _cntns_frequency = meshGenerator.Continentalnessfrequency;
+                float _ersn_frequency = meshGenerator.erosionFrequency;
+                float _pv_frequency = meshGenerator.pvFrequency;
+                int _octaves = 7;
                 for (int i = 0; i < _octaves; i++)
                 {
-                    // height += _amplitude * Mathf.PerlinNoise((c_x*c_size + x) * _frequency + meshGenerator.randomOffset.x, (c_z*c_size + z) * _frequency + meshGenerator.randomOffset.z);
-                    f_height += _amplitude * IcariaNoise.GradientNoise(worldX * _frequency + meshGenerator.randomOffset.x, worldZ * _frequency + meshGenerator.randomOffset.z);
+                    cntns_height += _amplitude * IcariaNoise.GradientNoise(worldX * _cntns_frequency + meshGenerator.randomOffset.x, worldZ * _cntns_frequency + meshGenerator.randomOffset.z, meshGenerator.seed);
+                    ersn_height += _amplitude * IcariaNoise.GradientNoise(worldX * _ersn_frequency + meshGenerator.randomOffset.x + 10000f, worldZ * _ersn_frequency + meshGenerator.randomOffset.z + 10000f, meshGenerator.seed);
+                    pv_height += _amplitude * IcariaNoise.GradientNoise(worldX * _pv_frequency + meshGenerator.randomOffset.x + 20000f, worldZ * _pv_frequency + meshGenerator.randomOffset.z + 20000f, meshGenerator.seed);
+                    _pv_frequency *= 2;
                     _amplitude *= 0.5f;
-                    _frequency *= 2;
-                    range += _amplitude;
+                    _cntns_frequency *= 2;
+                    _ersn_frequency *= 2;
+
                 }
-                f_height = f_height + 0.5f - range / 2;
-                f_height = f_height + meshGenerator.heightOffset / c_height;
-                f_height = meshGenerator.heightCurve.Evaluate(f_height);
-                int height = Mathf.FloorToInt(f_height * c_height);
+                cntns_height = (cntns_height + 1) / 2; // normalize to 0-1
+                // cntns_height = cntns_height + meshGenerator.heightOffset / c_height;
+                cntns_height = meshGenerator.ContinentalnessHeightCurve.Evaluate(cntns_height);
+
+                ersn_height = (ersn_height + 1) / 2; // normalize to 0-1
+                ersn_height = meshGenerator.erosionHeightCurve.Evaluate(ersn_height);
+
+                pv_height = math.abs(pv_height); // normalize to 0-1
+                pv_height = meshGenerator.pvHeightCurve.Evaluate(pv_height);
+
+
+                float f_height = (cntns_height + ersn_height + pv_height) / 3f;
+                // convert 0-1 to waterlevel - 32 to c_height
+                int height = Mathf.FloorToInt(Mathf.Lerp(meshGenerator.waterLevel - 32, c_height-5, f_height));
 
                 if (x < c_size - 1 && z < c_size - 1 && x >= 0 && z >= 0)
                 {
@@ -194,51 +204,11 @@ public class Chunk
                         {
                             // underground
                             blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.stone);
-
-                            // add ores underground
-                            if (y < 0.3f * c_height)
-                            {
-                                float isSelected_block_for_diamond = rng.getFloat((uint)worldX, (uint)y, (uint)worldZ);
-                                float d_chance_modifier = (1f - ((float)y / (0.3f * c_height))) * 0.0003f; // more chance to spawn diamond ore at lower depth
-
-                                if (isSelected_block_for_diamond < d_chance_modifier)
-                                {
-                                    // cluster of diamond ore
-                                    GenerateOreVein(x, y, z, 1, 7, BlockData.BlockType.diamond_ore);
-                                    // blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.diamond_ore);
-                                }
-                            }
-
-                            if (y < 0.7f * c_height)
-                            {
-                                float isSelected_block_for_iron = rng.getFloat((uint)worldX, (uint)y, (uint)worldZ);
-
-                                if (isSelected_block_for_iron < 0.0006f)
-                                {
-                                    // cluster of iron ore
-                                    GenerateOreVein(x, y, z, 3, 10, BlockData.BlockType.iron_ore);
-                                }
-                            }
-                            if (y < 0.9f * c_height)
-                            {
-                                float isSelected_block_for_coal = rng.getFloat((uint)worldX, (uint)y, (uint)worldZ);
-                                float chance_modifier = 0.0015f;
-                                if (y < 0.5f * c_height)
-                                {
-                                    chance_modifier = (float)y / (0.5f * c_height) * 0.0015f; // less chance to spawn coal ore at lower depth
-                                }
-
-                                if (isSelected_block_for_coal < chance_modifier)
-                                {
-                                    // cluster of coal ore
-                                    GenerateOreVein(x, y, z, 4, 12, BlockData.BlockType.coal_ore);
-                                }
-                            }
                         }
                     }
                     else
                     {
-                        if (y < waterLevel)
+                        if (y < meshGenerator.waterLevel)
                         {
                             blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.water);
                         }
@@ -251,185 +221,169 @@ public class Chunk
             }
         }
 
-        //caves Generation
-        for (int z = -1; z < c_size + 1; z++)
+        float invHeight = 1f / c_height;
+
+        // caves Generation
+        if (meshGenerator.generateCaves)
         {
-            int worldZ = c_z * c_size + z;
-            for (int x = -1; x < c_size + 1; x++)
+            for (int z = -1; z < c_size + 1; z++)
             {
-                int worldX = c_x * c_size + x;
-                for (int y = 0; y < c_height; y++)
+                int worldZ = c_z * c_size + z;
+                float baseZ = worldZ * 0.6f;
+                for (int x = -1; x < c_size + 1; x++)
                 {
-                    if (blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.air && blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.water && blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.bedrock)
+                    int worldX = c_x * c_size + x;
+                    float baseX = worldX * 0.6f;
+                    for (int y = 0; y < c_height; y++)
                     {
-                        // long caves and big caves
-                        float _amplitude = 1f;
-                        float _frequency = meshGenerator.long_caveFrequency;
-                        float range = _amplitude;
-                        float _octaves = meshGenerator.long_caveOctaves;
+                        var blockType = blocks[x + 1, y, z + 1].blockType;
 
-                        float noise1_opactiy = 0;
-                        float noise2_opacity = 0;
-                        for (int i = 0; i < _octaves; i++)
+                        if (blockType == BlockData.BlockType.air ||
+                           blockType == BlockData.BlockType.water ||
+                           blockType == BlockData.BlockType.bedrock)
                         {
-                            noise1_opactiy += _amplitude * IcariaNoise.GradientNoise3D(worldX * _frequency * 0.6f + meshGenerator.randomOffset.x, y * _frequency + meshGenerator.randomOffset.y, worldZ * _frequency * 0.6f + meshGenerator.randomOffset.z);
-                            noise2_opacity += _amplitude * IcariaNoise.GradientNoise3D(worldX * _frequency * 0.6f + meshGenerator.randomOffset.x + 100000f, y * _frequency + meshGenerator.randomOffset.y + 100000f, worldZ * _frequency * 0.6f + meshGenerator.randomOffset.z + 100000f);
-                            _amplitude *= 0.5f;
-                            _frequency *= 2;
-                            range += _amplitude;
+                            continue;
                         }
-                        noise1_opactiy = MathF.Abs(noise1_opactiy / range);
-                        noise2_opacity = MathF.Abs(noise2_opacity / range);
 
-                        float depth = 1f - ((float)y / (float)c_height);
-                        depth = Mathf.Clamp(depth, 0f, 1f);
-                        float opacity = noise1_opactiy + noise2_opacity;
-                        float gap = Mathf.Lerp(meshGenerator.long_caveGapTop, meshGenerator.long_caveGapBottom, depth);
-                        if (opacity < gap)
+                        float depth = 1f - y * invHeight;
+
+                        if (carveCave(baseX, baseZ, y, depth))
                         {
-                            if (y < lavaLevel)
+                            if (y < meshGenerator.lavaLevel)
                             {
                                 blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.lava);
+                                blockType = BlockData.BlockType.lava;
                             }
                             else
                             {
                                 blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.air);
+                                blockType = BlockData.BlockType.air;
                             }
                         }
 
-                        // big caves
-                        float _amplitude_b = 1f;
-                        float _frequency_b = meshGenerator.big_caveFrequency;
-                        float range_b = _amplitude_b;
-                        float _octaves_b = meshGenerator.big_caveOctaves;
-                        float noise_b_opacity = 0;
-
-                        for (int i = 0; i < _octaves_b; i++)
+                        // add ores underground
+                        if (blockType != BlockData.BlockType.stone)
                         {
-                            noise_b_opacity += _amplitude_b * IcariaNoise.GradientNoise3D(worldX * _frequency_b * 0.6f + meshGenerator.randomOffset.x + 20000f, y * _frequency_b + meshGenerator.randomOffset.y + 20000f, worldZ * _frequency_b * 0.6f + meshGenerator.randomOffset.z + 20000f);
-                            _amplitude_b *= 0.5f;
-                            _frequency_b *= 2;
-                            range_b += _amplitude_b;
+                            continue;
                         }
-                        noise_b_opacity = ((noise_b_opacity / range_b) + 1f) / 2f;
-                        float big_opacity = noise_b_opacity;
-                        float big_gap = Mathf.Lerp(meshGenerator.big_caveGapTop, meshGenerator.big_caveGapBottom, depth);
-                        if (big_opacity < big_gap)
+
+                        if (y < 0.3f * c_height)
                         {
-                            // float is_selected_for_pillar = rng.getFloat((uint)worldX, (uint)worldZ);
+                            float isSelected_block_for_diamond = rng.getFloat((uint)worldX, (uint)y, (uint)worldZ);
+                            float d_chance_modifier = (1f - (y / (0.3f * c_height))) * 0.0003f; // more chance to spawn diamond ore at lower depth
 
-                            // if (is_selected_for_pillar < 0.003f)
-                            // {
-                            //     // float edge_dist = big_opacity / big_gap;
-                            //     // int pillar_width = (int)(edge_dist * 3f);
-                            //     // // for (int px = -pillar_width; px <= pillar_width; px++)
-                            //     // // {
-                            //     // //     for (int pz = -pillar_width; pz <= pillar_width; pz++)
-                            //     // //     {
-                            //     // //         // do nothing, leave pillar blocks
-                            //     // //     }
-                            //     // // }
+                            if (isSelected_block_for_diamond < d_chance_modifier)
+                            {
+                                // cluster of diamond ore
+                                GenerateOreVein(x, y, z, 1, 7, BlockData.BlockType.diamond_ore);
+                                // blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.diamond_ore);
+                            }
+                        }
 
-                            //     // x += pillar_width;
-                            //     // z += pillar_width;
+                        if (y < 0.7f * c_height)
+                        {
+                            float isSelected_block_for_iron = rng.getFloat((uint)worldX, (uint)y, (uint)worldZ);
 
-                            //     // if (x > c_size)
-                            //     // {
-                            //     //     x = c_size - 1;
-                            //     // }
-                            //     // if (z > c_size)
-                            //     // {
-                            //     //     z = c_size - 1;
-                            //     // }
-                            // }
-                            // else
-                            // {
-                            //     if (y < lavaLevel)
-                            //     {
-                            //         blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.lava);
-                            //     }
-                            //     else
-                            //     {
-                            //         blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.air);
-                            //     }
-                            // }
+                            if (isSelected_block_for_iron < 0.0006f)
+                            {
+                                // cluster of iron ore
+                                GenerateOreVein(x, y, z, 3, 10, BlockData.BlockType.iron_ore);
+                            }
+                        }
+                        if (y < 0.9f * c_height)
+                        {
+                            float isSelected_block_for_coal = rng.getFloat((uint)worldX, (uint)y, (uint)worldZ);
+                            float chance_modifier = 0.0015f;
+                            if (y < 0.5f * c_height)
+                            {
+                                chance_modifier = (float)y / (0.5f * c_height) * 0.0015f; // less chance to spawn coal ore at lower depth
+                            }
+
+                            if (isSelected_block_for_coal < chance_modifier)
+                            {
+                                // cluster of coal ore
+                                GenerateOreVein(x, y, z, 4, 12, BlockData.BlockType.coal_ore);
+                            }
                         }
                     }
                 }
             }
         }
 
-        // // Additional Features Generation (e.g., Trees, ores) can be added here
-        // for (int z = 0; z < c_size; z++)
-        // {
-        //     int worldZ = c_z * c_size + z;
-        //     for (int x = 0; x < c_size; x++)
-        //     {
-        //         int worldX = c_x * c_size + x;
-        //         // Check if the block is grass to plant a tree
-        //         int height = heights[x, z];
+        // Additional Features Generation (e.g., Trees, ores) can be added here
+        if (meshGenerator.generateFolliage)
+        {
+            for (int z = 0; z < c_size; z++)
+            {
+                int worldZ = c_z * c_size + z;
+                for (int x = 0; x < c_size; x++)
+                {
+                    int worldX = c_x * c_size + x;
+                    // Check if the block is grass to plant a tree
+                    int height = heights[x, z];
 
-        //         if (blocks[x, height, z].blockType == BlockData.BlockType.grass_block && height > waterLevel)
-        //         {
-        //             float isSelected_block_for_tree = rng.getFloat((uint)worldX, (uint)worldZ);
+                    if (blocks[x, height, z].blockType == BlockData.BlockType.grass_block && height > meshGenerator.waterLevel)
+                    {
+                        float isSelected_block_for_tree = rng.getFloat((uint)worldX, (uint)worldZ);
 
-        //             // Debug.Log(isSelected_block_for_tree);                
-        //             if (isSelected_block_for_tree < 0.002f)
-        //             {
-        //                 for (int i = 0; i < 8; i++)
-        //                 {
-        //                     if (i < 4)
-        //                     {
-        //                         blocks[x, height + 1 + i, z] = new Block(BlockData.BlockType.oak_log);
-        //                     }
-        //                     else
-        //                     {
-        //                         int dia = 7 - i;
-        //                         for (int t_x = -dia; t_x <= dia; t_x++)
-        //                         {
-        //                             for (int t_z = -dia; t_z <= dia; t_z++)
-        //                             {
-        //                                 try
-        //                                 {
-        //                                     blocks[x + t_x, height + 1 + i, z + t_z] = new Block(BlockData.BlockType.oak_leaves);
-        //                                 }
-        //                                 catch (System.Exception)
-        //                                 {
-        //                                     Debug.Log("out of range");
-        //                                 }
-        //                             }
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //             else
-        //             {
-        //                 //add grass plant on top of grass block
-        //                 float isSelected_block_for_grass = rng.getFloat((uint)worldX, (uint)worldZ);
-        //                 if (isSelected_block_for_grass < 0.05f)
-        //                 {
-        //                     //make sure we don't go out of bounds
-        //                     if (height + 1 < c_height)
-        //                     {
-        //                         blocks[x, height + 1, z] = new Block(BlockData.BlockType.short_grass);
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
+                        // Debug.Log(isSelected_block_for_tree);                
+                        if (isSelected_block_for_tree < 0.002f)
+                        {
+                            for (int i = 0; i < 8; i++)
+                            {
+                                if (i < 4)
+                                {
+                                    blocks[x, height + 1 + i, z] = new Block(BlockData.BlockType.oak_log);
+                                }
+                                else
+                                {
+                                    int dia = 7 - i;
+                                    for (int t_x = -dia; t_x <= dia; t_x++)
+                                    {
+                                        for (int t_z = -dia; t_z <= dia; t_z++)
+                                        {
+                                            try
+                                            {
+                                                blocks[x + t_x, height + 1 + i, z + t_z] = new Block(BlockData.BlockType.oak_leaves);
+                                            }
+                                            catch (System.Exception)
+                                            {
+                                                Debug.Log("out of range");
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            //add grass plant on top of grass block
+                            float isSelected_block_for_grass = rng.getFloat((uint)worldX, (uint)worldZ);
+                            if (isSelected_block_for_grass < 0.05f)
+                            {
+                                //make sure we don't go out of bounds
+                                if (height + 1 < c_height)
+                                {
+                                    blocks[x, height + 1, z] = new Block(BlockData.BlockType.short_grass);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
-        // only show specific blocks for testing
+        // // only show specific blocks for testing
         // for (int y = 0; y < c_height; y++)
         // {
         //     for (int z = 0; z < c_size; z++)
         //     {
         //         for (int x = 0; x < c_size; x++)
         //         {
-        //             if (blocks[x+1, y, z+1].blockType != BlockData.BlockType.iron_ore &&
-        //                 blocks[x+1, y, z+1].blockType != BlockData.BlockType.grass_block)
+        //             if (blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.iron_ore &&
+        //                 blocks[x + 1, y, z + 1].blockType != BlockData.BlockType.grass_block)
         //             {
-        //                 blocks[x+1, y, z+1] = new Block(BlockData.BlockType.air);
+        //                 blocks[x + 1, y, z + 1] = new Block(BlockData.BlockType.air);
         //             }
         //         }
         //     }
@@ -439,6 +393,76 @@ public class Chunk
     public float myClamp(float val)
     {
         return math.pow((val * 2 - 1), 3);
+    }
+
+    bool carveCave(float baseX, float baseZ, int y, float depth)
+    {
+        // long caves and big caves
+        float _amplitude = 1f;
+        float _frequency = meshGenerator.long_caveFrequency;
+        float _octaves = meshGenerator.long_caveOctaves;
+
+        float noise1_opactiy = 0;
+        float noise2_opacity = 0;
+        for (int i = 0; i < _octaves; i++)
+        {
+            noise1_opactiy += _amplitude * IcariaNoise.GradientNoise3D(baseX * _frequency + meshGenerator.randomOffset.x, y * _frequency + meshGenerator.randomOffset.y, baseZ * _frequency + meshGenerator.randomOffset.z, meshGenerator.seed);
+            noise2_opacity += _amplitude * IcariaNoise.GradientNoise3D(baseX * _frequency + meshGenerator.randomOffset.x + 100000f, y * _frequency + meshGenerator.randomOffset.y + 100000f, baseZ * _frequency + meshGenerator.randomOffset.z + 100000f, meshGenerator.seed);
+            _amplitude *= 0.5f;
+            _frequency *= 2;
+        }
+        noise1_opactiy = MathF.Abs(noise1_opactiy);
+        noise2_opacity = MathF.Abs(noise2_opacity);
+
+        float opacity = noise1_opactiy + noise2_opacity;
+        float gap = Mathf.Lerp(meshGenerator.long_caveGapTop, meshGenerator.long_caveGapBottom, depth);
+        if (opacity < gap)
+        {
+            return true;
+        }
+
+        // big caves
+        float _amplitude_b = 1f;
+        float _frequency_b = meshGenerator.big_caveFrequency;
+        float _octaves_b = meshGenerator.big_caveOctaves;
+        float noise_b_opacity = 0;
+
+        for (int i = 0; i < _octaves_b; i++)
+        {
+            noise_b_opacity += _amplitude_b * IcariaNoise.GradientNoise3D(baseX * _frequency_b + meshGenerator.randomOffset.x + 20000f, y * _frequency_b + meshGenerator.randomOffset.y + 20000f, baseZ * _frequency_b + meshGenerator.randomOffset.z + 20000f, meshGenerator.seed);
+            _amplitude_b *= 0.5f;
+            _frequency_b *= 2;
+        }
+        noise_b_opacity = (noise_b_opacity + 1f) / 2f;
+        float big_opacity = noise_b_opacity;
+        float big_gap = Mathf.Lerp(meshGenerator.big_caveGapTop, meshGenerator.big_caveGapBottom, depth);
+        if (big_opacity < big_gap)
+        {
+            return true;
+            // float edge_dist = big_opacity / big_gap;
+            // int pillar_width = (int)(edge_dist * 3f);
+            // // for (int px = -pillar_width; px <= pillar_width; px++)
+            // // {
+            // //     for (int pz = -pillar_width; pz <= pillar_width; pz++)
+            // //     {
+            // //         // do nothing, leave pillar blocks
+            // //     }
+            // // }
+
+            // x += pillar_width;
+            // z += pillar_width;
+
+            // if (x > c_size)
+            // {
+            //     x = c_size - 1;
+            // }
+            // if (z > c_size)
+            // {
+            //     z = c_size - 1;
+            // }
+        }
+
+        return false;
     }
 
     void GenerateOreVein(int startX, int startY, int startZ, int veinSizeMin, int veinSizeMax, BlockData.BlockType oreType)
@@ -475,9 +499,9 @@ public class Chunk
 
     bool InBounds(Vector3Int p)
     {
-        return p.x > 0 && p.x < c_size - 1 &&
-            p.y > 0 && p.y < c_height - 1 &&
-            p.z > 0 && p.z < c_size - 1;
+        return p.x > 0 && p.x < c_size &&
+            p.y > 0 && p.y < c_height &&
+            p.z > 0 && p.z < c_size;
     }
 
 
@@ -575,14 +599,13 @@ public class Chunk
                             bool[] faceConditions;
                             if (currentBlock.blockType == BlockData.BlockType.water || currentBlock.blockType == BlockData.BlockType.lava)
                             {
-                                float level = (currentBlock.blockType == BlockData.BlockType.water) ? waterLevel : lavaLevel;
 
                                 faceConditions = new bool[] {
                                     blocks[block_x+1, block_y, block_z+1].blockType.Equals(BlockData.BlockType.air), // front
                                     blocks[block_x, block_y, block_z+1].blockType.Equals(BlockData.BlockType.air), // left
                                     blocks[block_x+1, block_y, block_z+2].blockType.Equals(BlockData.BlockType.air), // back
                                     blocks[block_x+2, block_y, block_z+1].blockType.Equals(BlockData.BlockType.air), // right
-                                    block_y == c_height-1 || (!blocks[block_x+1, block_y+1, block_z+1].blockType.Equals(currentBlock.blockType) && block_y == level-1), // top
+                                    block_y == c_height-1 || !blocks[block_x+1, block_y+1, block_z+1].blockType.Equals(currentBlock.blockType), // top
                                     block_y != 0 && blocks[block_x+1, block_y-1, block_z+1].blockType.Equals(BlockData.BlockType.air), // bottom
                                     // true, true, true, true, true, true
                                 };

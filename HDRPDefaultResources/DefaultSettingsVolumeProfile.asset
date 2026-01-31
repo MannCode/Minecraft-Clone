@@ -803,7 +803,7 @@ MonoBehaviour:
     m_Value: 1
   enabled:
     m_OverrideState: 1
-    m_Value: 1
+    m_Value: 0
   colorMode:
     m_OverrideState: 1
     m_Value: 1
@@ -925,19 +925,19 @@ MonoBehaviour:
   active: 1
   quality:
     m_OverrideState: 1
-    m_Value: 1
+    m_Value: 3
   enable:
     m_OverrideState: 1
     m_Value: 1
   length:
     m_OverrideState: 1
-    m_Value: 0.15
+    m_Value: 0.137
   opacity:
     m_OverrideState: 1
     m_Value: 1
   distanceScaleFactor:
     m_OverrideState: 1
-    m_Value: 0.5
+    m_Value: 0.596
   maxDistance:
     m_OverrideState: 1
     m_Value: 50
@@ -1484,7 +1484,7 @@ MonoBehaviour:
     m_Value: 11
   multiplier:
     m_OverrideState: 1
-    m_Value: 1
+    m_Value: 0
   upperHemisphereLuxValue:
     m_OverrideState: 1
     m_Value: 0.4660715
@@ -2582,7 +2582,7 @@ MonoBehaviour:
   interCascadeBorders: 1
   maxShadowDistance:
     m_OverrideState: 1
-    m_Value: 150
+    m_Value: 400
   directionalTransmissionMultiplier:
     m_OverrideState: 1
     m_Value: 1
@@ -2591,25 +2591,25 @@ MonoBehaviour:
     m_Value: 4
   cascadeShadowSplit0:
     m_OverrideState: 1
-    m_Value: 0.08133333
+    m_Value: 0.12
   cascadeShadowSplit1:
     m_OverrideState: 1
-    m_Value: 0.19266666
+    m_Value: 0.275
   cascadeShadowSplit2:
     m_OverrideState: 1
-    m_Value: 0.35333332
+    m_Value: 0.405
   cascadeShadowBorder0:
     m_OverrideState: 1
-    m_Value: 0.09866667
+    m_Value: 0.25
   cascadeShadowBorder1:
     m_OverrideState: 1
-    m_Value: 0.05086228
+    m_Value: 0.16774192
   cascadeShadowBorder2:
     m_OverrideState: 1
-    m_Value: 0
+    m_Value: 0.11346154
   cascadeShadowBorder3:
     m_OverrideState: 1
-    m_Value: 0
+    m_Value: 0.063025214
 --- !u!114 &8347671941671418887
 MonoBehaviour:
   m_ObjectHideFlags: 3

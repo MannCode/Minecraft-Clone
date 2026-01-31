@@ -12,6 +12,7 @@ using UnityEngine.UI;
 
 public class MeshGenerator : MonoBehaviour
 {
+    public bool isGenerateWorld = true;
     public GameObject chunkContainer;
     public GameObject player;
     public Image loadingScreen;
@@ -28,31 +29,41 @@ public class MeshGenerator : MonoBehaviour
     // terrain noise parameters
     public bool randomSeed = true;
     public int seed;
-    public float amplitude;
-    public float frequency;
     public float heightOffset;
-    public int octaves;
-    public AnimationCurve heightCurve;
+    public float Continentalnessfrequency;
+    public AnimationCurve ContinentalnessHeightCurve;
+
+    public float erosionFrequency;
+    public AnimationCurve erosionHeightCurve;
+
+    public float pvFrequency;
+    public AnimationCurve pvHeightCurve;
 
     // Cave noise parameters
-    public float long_caveAmplitude;
+    public bool generateCaves;
+
     public float long_caveFrequency;
     public float long_caveOctaves;
     public float long_caveGapTop;
     public float long_caveGapBottom;
 
 
-    public float big_caveAmplitude;
     public float big_caveFrequency;
     public float big_caveOctaves;
     public float big_caveGapTop;
     public float big_caveGapBottom;
+
+    // folliage parameters
+    public bool generateFolliage;
 
     Thread calculationThread;
     Vector3 playerPosition;
 
     [HideInInspector]
     public Vector3 randomOffset;
+
+    public float waterLevel = 126f;
+    public float lavaLevel = 10f;
 
 
     public Dictionary<Vector2Int, Chunk> renderedChunks = new Dictionary<Vector2Int, Chunk>();
@@ -94,6 +105,12 @@ public class MeshGenerator : MonoBehaviour
     {
         // send player position to calculation thread
         playerPosition = player.transform.position;
+
+        // if (!isGenerateWorld)
+        // {
+        //     deleteAllChunks();
+        //     return;
+        // }
 
         if (deletionChunks.Count > 0) {
             deleteOldestChunk();
@@ -237,14 +254,13 @@ public class MeshGenerator : MonoBehaviour
 
     void getOneChunk(int c_x, int c_z)
     {
-        Chunk chunk = new Chunk(this, c_x, c_z, chunkContainer);
+        Chunk chunk = new Chunk(this, c_x, c_z);
         uninitializedChunks.Add(new Vector2Int(c_x, c_z), chunk);
         unitializedChunkQueue.Enqueue(new Vector2Int(c_x, c_z));
     }
 
     public void reintialize()
     {
-
         foreach (KeyValuePair<Vector2Int, Chunk> chunk in renderedChunks)
         {
             chunk.Value.destroyChunk();
@@ -271,7 +287,8 @@ public class MeshGenerator : MonoBehaviour
 
         if(randomSeed) seed = UnityEngine.Random.Range(0, 1000000);
         UnityEngine.Random.InitState(seed);
-        randomOffset = new Vector3(UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000));
+        // randomOffset = new Vector3(UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000), UnityEngine.Random.Range(0, 1000));
+        randomOffset = new Vector3(0, 0, 0);
     }
 
     void deleteOldestChunk()
@@ -282,5 +299,28 @@ public class MeshGenerator : MonoBehaviour
             chunk.destroyChunk();
             deletionChunks.Remove(key);
         }
+    }
+
+    void deleteAllChunks()
+    {
+        if(deletionChunks.Count == 0 && initializedChunks.Count == 0 && uninitializedChunks.Count == 0 && renderedChunks.Count == 0) return;
+
+        foreach (KeyValuePair<Vector2Int, Chunk> chunk in renderedChunks)
+        {
+            chunk.Value.destroyChunk();
+        }
+        foreach (KeyValuePair<Vector2Int, Chunk> chunk in initializedChunks)
+        {
+            chunk.Value.destroyChunk();
+        }
+        foreach (KeyValuePair<Vector2Int, Chunk> chunk in deletionChunks)
+        {
+            chunk.Value.destroyChunk();
+        }
+        renderedChunks.Clear();
+        initializedChunks.Clear();
+        uninitializedChunks.Clear();
+        unitializedChunkQueue.Clear();
+        deletionChunks.Clear();
     }
 }
